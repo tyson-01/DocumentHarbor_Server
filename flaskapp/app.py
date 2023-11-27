@@ -68,7 +68,21 @@ def save_image(photo_name, image_data):
 # Signal to begin processing on the images in the photo session
 @app.route("/sendEndSignal", methods=["POST"])
 def send_end_signal():
-    pass
+    try:
+        json_payload = request.get_json()
+
+        identifier = json_payload.get("identifier")
+        processing_method = json_payload.get("processingMethod")
+
+        # Do shit here
+        print(identifier)
+        print(processing_method)
+
+        return "Success", 200
+    except Exception as e:
+        print("error")
+
+        return "Failure", 500
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port="5000", debug=True)
