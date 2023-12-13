@@ -4,13 +4,18 @@ from flask import Flask, jsonify, request
 from PIL import Image, ImageOps
 from PyPDF2 import PdfMerger
 
+from modules.documentExtractor import extract_document
+from modules.logger import log
 
 
-# Retrive root directory specified in the config.ini
-# This will be the root directory sent to the app, it sees all under this
+
+# Retrieve config variables
 config = configparser.ConfigParser()
 config.read(os.path.join(os.path.dirname(__file__), "config", "config.ini"))
 root_directory = config.get("ServerConfig", "root_directory")
+document_extracting = config.getboolean("ServerConfig", "document_extracting")
+
+
 
 app = Flask(__name__)
 
@@ -26,10 +31,12 @@ def hello_world():
 # Called by the app to refresh its knowledge of the current directory structure
 @app.route("/getFolderStructure", methods=["GET"])
 def get_folder_structure():
+    log("")
     folder_structure = generate_folder_structure(root_directory)
 
     return jsonify(folder_structure)
 
+# Helper method for get_folder_structure to recursively generate folder structure
 def generate_folder_structure(directory):
     folder_structure = {
         "name": os.path.basename(directory),
@@ -47,9 +54,10 @@ def generate_folder_structure(directory):
 
 
 
-# Recieves and saves files during photo session, no processing
+# Receives and saves files during photo session, no processing
 @app.route("/uploadImage", methods=["POST"])
 def upload_image():
+    log("")
     try:
         photo_name = request.form.get("photoName")
         photo_data = request.files.get("file").read()
@@ -64,7 +72,8 @@ def upload_image():
         log(f"error {e}")
         
         return "Upload failed", 500
-    
+
+# Helper method for upload_image, saves image locally    
 def save_image(photo_name, image_data):
     folders = photo_name.split('/')
 
@@ -80,14 +89,16 @@ def save_image(photo_name, image_data):
 # Signal to begin processing on the images in the photo session
 @app.route("/sendEndSignal", methods=["POST"])
 def send_end_signal():
+    log("")
     try:
         json_payload = request.get_json()
 
         identifier = json_payload.get("identifier")
-        log(identifier)
         processing_method = json_payload.get("processingMethod")
-        log(processing_method)
 
+        log(f"Processing {identifier} via {processing_method}")
+
+        # Pattern match available processing methods and call corresponding processing code
         match processing_method:
             case "LEAVE_AS_IMAGES":
                 processing_method_leave_as_images(identifier)
@@ -98,7 +109,7 @@ def send_end_signal():
             case _:
                 print(f"Invalid processing method: {processing_method}")
                 return "Failure", 500
-        
+
         return "Success", 200
     
     except Exception as e:
@@ -106,9 +117,11 @@ def send_end_signal():
 
         return "Failure", 500
 
+# Processing method: "Leave as images"
 def processing_method_leave_as_images(identifier):
     pass
 
+# Processing method: "Create PDFs"
 def processing_method_create_pdfs(identifier):
     folders = identifier.split('/')
     path = os.path.join(root_directory, *folders[1:-1])
@@ -118,10 +131,24 @@ def processing_method_create_pdfs(identifier):
 
     for image_file in image_files:
         image_path = os.path.join(path, image_file)
+
+        # If auto document extraction is set in the config.ini file we attempt to extract documents
+        # if it fails, we just keep the image as is for conversion to pdf, background and all. 
+        if (document_extracting):
+            log(f"Extracting: {image_path}")
+            try:
+                extract_document(image_path)
+            except Exception as e:
+                log(f"Error in {image_path} extraction: {e}")
+            else:
+                log(f"Successful: {image_path}")
+
         log(f"Converting: {image_path}")
         jpg_to_pdf(image_path)
 
+# Processing method: "Merge PDFs"
 def processing_method_merge_pdfs(identifier):
+    # Starts by converting them all to individual PDFs, then just merges them
     processing_method_create_pdfs(identifier)
 
     folders = identifier.split('/')
@@ -140,10 +167,12 @@ def processing_method_merge_pdfs(identifier):
     merger.write(merged_pdf_path)
     merger.close()
     
+    # Remove individual pdfs if successful
     for pdf_file in pdf_files:
         pdf_file_path = os.path.join(path, pdf_file)
         os.remove(pdf_file_path)
 
+# Helper method for jpg to pdf conversion
 def jpg_to_pdf(path):
     try:
         image = Image.open(path)
@@ -151,14 +180,12 @@ def jpg_to_pdf(path):
         pdf_path = path.replace(".jpg", ".pdf")
         image.save(pdf_path, "PDF", resolution=100.0)
 
+        # Remove original jpg if successful
         os.remove(path)
     except Exception as e:
-        print(f"Error converting {path} to PDF: {e}")
+        log(f"Error converting {path} to PDF: {e}")
 
 
-
-def log(message):
-    print(message)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port="5000", debug=True)
