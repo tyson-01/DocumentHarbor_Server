@@ -27,11 +27,11 @@ In addition to generating a single PDF from the documents, you also have the abi
 2. Edit the config.ini file located in flaskapp\config\config.ini to set your root folder. The app will only have access to this folder and its subfolders. Currently it is set as "D:\Documents\DocumentHarborRoot", replace this placeholder with your desired root folder.
 3. navigate to the local repository and run "runApp" script. This sets up the virtual environment and installs any needed dependencies, as well as running the server.
 4. Note the IP address and port the server is running on as this will be required for the app setup below. From an example output snippet from the server terminal we would need to extract the information "192.168.1.39:5000":
->...
->  \* Running on all addresses (0.0.0.0)
->  \* Running on `http://127.0.0.1:5000`
->  \* Running on `http://192.168.1.39:5000`
-> Press CTRL+C to quit
+>...  
+> \* Running on all addresses (0.0.0.0)  
+> \* Running on `http://127.0.0.1:5000`  
+> \* Running on `http://192.168.1.39:5000`  
+> Press CTRL+C to quit  
 > ...
 
 ## App Setup
